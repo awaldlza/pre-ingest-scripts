@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import tarfile
 import traceback
 from lxml import etree
 from zipfile import ZipFile
@@ -15,6 +16,7 @@ from io import StringIO
 
 droid_call = 'droid.sh'
 jhove_call = 'jhove'
+sf_call = 'sf'
 
 def setup_dir(root, dir_name):
     dir_path = os.path.join(root, dir_name)
@@ -69,10 +71,10 @@ def setup_config():
     if not os.path.isdir(analyze_dir):
         # print("Not a directory")
         analyze_dir = os.getcwd()
-    print(f"Analyse-Ordner ist {analyze_dir}.")
-    output_dir = input("Set output directory.\n"
-                       "If left empty in the directory where the analyze_dir is stored "
-                       "an output folder is created.\n")
+    print(f"Analyzed folder is {analyze_dir}.")
+    output_dir = input(f"Set output directory.\n"
+                       f"If left empty the folder {analyze_dir}_output is created "
+                       " (if it does not exist already).\n")
     output_dir = output_dir.strip(" ").strip('"').strip("'")
     if not os.path.isdir(output_dir):
         # print(f"{output_dir} is not a directory")
@@ -80,8 +82,8 @@ def setup_config():
         # print(f"{output_dir}")
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-
     print(f"Output-Ordner ist {output_dir}.")
+
     update = False
     update_yn = input("Do you want to update Droid and siegfried? If yes, please type Y.\n"
                       "Otherwise update will be skipped.")
@@ -139,52 +141,112 @@ def setup_config():
 
 def droid_sf_update():
     subprocess.run([droid_call, '-d'])
-    subprocess.run(['sf', '-update'])
+    subprocess.run([sf_call, '-update'])
 
-
+# TODO: output: nicht entpackte Archive
 def droid_compressed(folderinput, droid_output):
+    ## TODO: set list for container files that should be tried to unpack
     droidfile = os.path.join(droid_output, "droid_compressed.csv")
     subprocess.run([droid_call,
-                    folderinput, '-R', '-ff', 'file_ext any zip 7z xz rar tar gzip wim bzip2', '-f',
+                    folderinput, '-R', '-ff', 'file_ext any zip 7z xz gz bz2 tgz tar rar', '-f',
                     'type none FOLDER', '-o', droidfile])
     return droidfile
 
-
+# Aktuell nicht verwendet.
 def droid_shutil(comp_path, fold_path):
-    print(f"entpackt {comp_path}")
+    # print(comp_path)
+    # print(fold_path)
+    print(f"Unpacking {comp_path}")
+    last_part = comp_path[comp_path.rfind('/')+1:]
+    last_part = last_part[:last_part.find('.')]
+    fold_path = os.path.join(fold_path, f'{last_part}_folderlevel_by_script')
     try:
         shutil.unpack_archive(comp_path, fold_path)
-        print("Juhu!")
+        print(f"Successfully unpacked to {fold_path}")
     except BaseException:
-        print("Fehler")
+        print(f"ERROR: {comp_path} not successfully unpacked.")
+        traceback.print_exc()
+
+def droid_untar(tar_path, fold_name):
+    print("Untarring " + tar_path)
+    try:
+        with tarfile.open(tar_path) as mytar:
+            free_floating = False
+            for i in mytar.getmembers():
+                # print(i.name)
+                # Check if the member is a file and does not contain a '/'
+                if i.isfile() and '/' not in i.name:
+                    free_floating = True
+                    print(f"{i.name} is a file not contained in a directory.")
+                    last_part = mytar.name[mytar.name.rfind('/')+1:]
+                    last_part = last_part[:last_part.find('.')]
+                    print(last_part)
+            if free_floating:
+                fold_name = os.path.join(fold_name, f'{last_part}_folderlevel_by_script')
+            mytar.extractall(fold_name)
+            print(f"Successfully untarred to {fold_name}.")
+    except BaseException:
+        print(f"ERROR: {tar_path} not successfully unpacked.")
         traceback.print_exc()
 
 
-# def droid_unzip(zip_path, fold_name, fold_exists):
-#     print("unzip " + zip_path)
-#     try:
-#         with ZipFile(zip_path) as myzip:
-#         #Problem an extractall: unterhalb des
-#             myzip.extractall(path=fold_name)
-#     except BaseException:
-#         print("BAD ZIP FILE")
-#         traceback.print_exc()
+def droid_unzip(zip_path, fold_name):
+    print("Unzipping " + zip_path)
+    try:
+        with ZipFile(zip_path) as myzip:
+            zip_name_list = myzip.namelist()
+            free_floating_files = False
+            # https://stackoverflow.com/questions/15267661/how-to-check-if-entry-is-file-or-folder-using-pythons-standard-library-zipfile
+            for i in zip_name_list:
+                if not '/' in i:
+                    free_floating_files = True
+            if free_floating_files:
+                last_part = myzip.filename[myzip.filename.rfind('/')+1:]
+                last_part = last_part.strip('.zip')
+                fold_name = os.path.join(fold_name, f'{last_part}_folderlevel_by_script')
+#                print(fold_name)
+            myzip.extractall(path=f'{fold_name}')
+            print(f"Successfully unzipped to {fold_name}.")
+    except BaseException:
+        print(f"ERROR: {zip_path} not successfully unpacked.")
+        traceback.print_exc()
 
 def droid_un7zip(sevenzip_path, fold_name):
-    print("7unzip " + sevenzip_path)
+    print("7unzipping " + sevenzip_path)
     try:
         with py7zr.SevenZipFile(sevenzip_path) as my7z:
-            my7z.extractall(path=fold_name)
-        print("Juhu!")
+            #sevenzip_name_list = my7z.namelist()
+            sevenzip_list = my7z.list()
+            free_floating_files = False
+            # https://stackoverflow.com/questions/15267661/how-to-check-if-entry-is-file-or-folder-using-pythons-standard-library-zipfile
+            for i in sevenzip_list:
+                # print(i.filename)
+                if not '/' in i.filename and not i.is_directory:
+                    # for i in sevenzip_name_list:
+                    #     if not '/'  and i.isdi i:
+                    free_floating_files = True
+                    # print(free_floating_files)
+            if free_floating_files:
+                last_part = my7z.filename[my7z.filename.rfind('/')+1:]
+                last_part = last_part.strip('.7z')
+                fold_name = os.path.join(fold_name, f'{last_part}_folderlevel_by_script')
+                # print(fold_name)
+            my7z.extractall(path=f'{fold_name}')
+            ## TODO: schönerer Output wäre mit Last-part!
+            print(f"Successfully un7zipped to {fold_name}.")
+
     except BaseException:
-        print("BAD 7z FILE")
+        print(f"ERROR: {sevenzip_path} not successfully unpacked.")
         traceback.print_exc()
 
 
 def droid_decomp_routine(droid_input):
-    comp_types = {"zip": droid_shutil,
-                  "tar": droid_shutil,
-                  "xz": droid_shutil,
+    comp_types = {"zip": droid_unzip,
+                  "tar": droid_untar,
+                  "gz": droid_untar,
+                  "tgz": droid_untar,
+                  "xz": droid_untar,
+                  "bz2": droid_untar,
                   "7z": droid_un7zip}
     columns_needed = ['ID', 'PARENT_ID', 'URI', 'FILE_PATH', 'NAME', 'METHOD', 'STATUS', 'SIZE', 'TYPE', 'EXT',
                       'LAST_MODIFIED', 'EXTENSION_MISMATCH', 'FORMAT_COUNT', 'PUID', 'MIME_TYPE', 'FORMAT_NAME',
@@ -201,27 +263,38 @@ def droid_decomp_routine(droid_input):
         for i in range(len(decomp_csv)):
             ext = decomp_csv.loc[i].EXT
             comp_file_path = decomp_csv.loc[i].FILE_PATH
-            if ext in comp_types and not decomp_csv.loc[i].EXTENSION_MISMATCH:
+            if not decomp_csv.loc[i].EXTENSION_MISMATCH:
                 # print(ext)
                 # print(comp_types[ext])
                 folder_name = comp_file_path.rstrip("." + ext)
-
                 # Problem: tar.xz -> wenn xz weggenommen wird, immer noch tar, dadurch:
                 # schon vorhandener gleichnamiger Ordner nicht erkannt
-                folder_exists = False
-                if os.path.exists(folder_name):
-                    folder_exists = True
-                    folder_name = folder_name + "_decomp"
-                    print("folder_name")
+                if folder_name[-4:] == ".tar":
+                    folder_name = folder_name[:-4]
+                    ext = 'tar'
+                if ext in comp_types:
+                    #print(f'folder ist {folder_name}')
+                    #folder_name = os.
+                    #comp_file_path = f'"{comp_file_path}"'
+                    #print(folder_name)
+                    folder_exists = False
+                    if os.path.exists(folder_name):
+                        folder_exists = True
+                        folder_name = folder_name + "_decomp"
+                        #print(folder_name)
+                    else:
+                       slash_id = folder_name.rfind("/")
+                       folder_name = folder_name[:slash_id + 1]
+                    # folder_name = f'{folder_name}_decomp_by_archive_script'
+                    comp_types[ext](comp_file_path, folder_name)
                 else:
-                    slash_id = folder_name.rfind("/")
-                    folder_name = folder_name[:slash_id + 1]
-                comp_types[ext](comp_file_path, folder_name)
-            # TODO bei gleichnamigem Ordner: vergleichen
+                    print(f"{ext} is not a compression format that can be automatically unpacked by this script.\n"
+                          f"Not unpacked file is {comp_file_path}")
+                # TODO bei gleichnamigem Ordner: vergleichen
             # TODO komprimiertes Paket löschen (?)
             else:
-                print(f"{ext} ist unbekanntes Kompressionsformat.\n"
-                      f"Liegt an {comp_file_path}")
+                if decomp_csv.loc[i].EXTENSION_MISMATCH:
+                    print(f"{comp_file_path} has an Extension Mismatch. Needs to be controlled before extraction.")
 
 
 def droid_complete(folder_input, droid_output, hash_generation):
@@ -258,10 +331,10 @@ def sf_analyze(droid_file, output_folder):
             # print(type(sf_an_path))
             # print(droid_fmt)
             # print(droid_fmt_count)
-            # sf_res = subprocess.run(['sf', '-csv', sf_an_path])
+            # sf_res = subprocess.run([sf_call, '-csv', sf_an_path])
 
             ## auskommentiert, damit sf nicht läuft
-            sf_res = subprocess.check_output(['sf', '-csv', sf_an_path], text=True)
+            sf_res = subprocess.check_output([sf_call, '-csv', sf_an_path], text=True)
             csv_io = StringIO(sf_res)
             df_sf_res = pd.read_csv(csv_io)
 
@@ -335,6 +408,7 @@ def jhove_and_copy(droid_sf_analysis, output_folder, dojh, jhove_fl, jh_conf, jh
                         else:
                             print('no config')
                             jhove_xml = subprocess.check_output(['jhove', '-h', 'xml', file_path], text=True)
+                        ##TODO: Only save XML file if something is wrong!
                         xml_file = os.path.join(jhove_fl, f'xml_{str(counter)}.xml')
                         with open(xml_file, 'w') as jhove_file:
                             jhove_file.write(jhove_xml)
