@@ -1,3 +1,4 @@
+import csv
 import os
 import shutil
 import subprocess
@@ -62,7 +63,6 @@ def check_config_valid(columnnames, filepath):
         return False
 
 
-
 def setup_config():
     analyze_dir = input("Put in the path to the directory that should be analyzed.\n "
                         "If left empty, current working directory is used.\n")
@@ -84,36 +84,95 @@ def setup_config():
             os.makedirs(output_dir)
     print(f"Output-Ordner ist {output_dir}.")
 
-    update = False
-    update_yn = input("Do you want to update Droid and siegfried? If yes, please type Y.\n"
-                      "Otherwise update will be skipped.")
-    if update_yn == "Y":
-        update = True
-    decomp_yn = input("Should the script try to decompress archives? Then please type Y.\n"
-                      "Default is no.")
-    if decomp_yn == "Y":
-        decomp = True
-    else:
-        decomp = False
-    hash_yn = input("Should droid generate hash sums? Then please type Y.\n"
-                    "Default is no.")
-    if hash_yn == "Y":
-        hash_set = True
-    else:
-        hash_set = False
 
-    jhove_yn = input("Do you want to do a jhove validation?\n "
-                     "If yes, please type Y.\n"
-                     "Default is no.")
-    if jhove_yn == "Y":
-        jhoving = True
+
+    chosen_workflow = input("Which workflow do you want to execute? Type in the number of the workflow. \n"
+                            "(1) Only decompressing. \n"
+                            "(2) Only Format identification with Droid. \n"
+                            "(3) Only Format identification with Droid and Siegfried. \n"
+                            "(4) Format Identification and Validation (with Jhove, if Droid and Siegfried have the same result) \n"
+                            "(5) Decompressing and Format identification with Droid and Siegfried. \n"
+                            "(6) Everything (Decompressing, Format identification and Validation). \n")
+    if int(chosen_workflow) not in range(1, 7):
+        # print(type(chosen_workflow))
+        # print(type(int(chosen_workflow)))
+        # print(chosen_workflow)
+        chosen_workflow = input("Input has to be an integer between 1 and 6. Else the script will exit.")
+        if not type(chosen_workflow) is int or chosen_workflow not in range(1, 6):
+            quit()
+
+    match int(chosen_workflow):
+        case 1:
+            print('Chosen Workflow: (1) Only decompressing.')
+            decomp = True
+            droid = False
+            sf = False
+            jhoving = False
+        case 2:
+            print('Chosen workflow: (2) Only Format identification with Droid.')
+            decomp = False
+            droid = True
+            sf = False
+            jhoving = False
+        case 3:
+            print('Chosen workflow: (3) Only Format identification with Droid and Siegfried."')
+            decomp = False
+            droid = True
+            sf = True
+            jhoving = False
+        case 4:
+            print('Chosen workflow: (4) Format Identification and Validation (with Jhove, if Droid and Siegfried have the same result).')
+            decomp = False
+            droid = True
+            sf = True
+            jhoving = True
+        case 5:
+            print("Chosen workflow: (5) Decompressing and Format identification with Droid and Siegfried.")
+            decomp = True
+            droid = True
+            sf = True
+            jhoving = False
+        case 6:
+            print("Chosen workflow: (6) Everything (Decompressing, Format identification and Validation).")
+            decomp = True
+            droid = True
+            sf = True
+            jhoving = True
+
+
+    update = False
+    hash_set = False
+    mk_copies = False
+    if int(chosen_workflow) > 1:
+        update_yn = input("Do you want to update Droid and siegfried? If yes, please type Y.\n"
+                          "Otherwise update will be skipped.")
+        if update_yn == "Y":
+            update = True
+        hash_yn = input("Should droid generate hash sums? Then please type Y.\n"
+                        "Default is no.")
+        if hash_yn == "Y":
+            hash_set = True
+
+    if int(chosen_workflow) > 2:
+        copies_yn = input("Do you want the script to generate copies for files with uncertain or incorrect formats?\n "
+                          "If yes, please type Y.\n"
+                          "Otherwise no copies will be made.")
+        if copies_yn == "Y":
+            mk_copies = True
+
+    jhove_dir = ""
+    jhove_config_exists = ""
+    jhove_config = ""
+
+    if jhoving:
         jhove_config_exists, jhove_config = check_config_file_exists('jhove', 'jhove_config.csv')
         if jhove_config_exists:
             if check_config_valid({'PUID','jhove_module'}, jhove_config):
                 print('Provided config is valid and will be used.')
             else:
                 if jhove_config_exists:
-                    print(f'Provided config is not used. There is no column with name "PUID". \n'
+                    print(f'Provided config is not used. The config does not have a column named PUID and another '
+                          f'one called "jhove_module. \n'
                           f'Jhove modules are chosen based on jhove guess since no config file was provided.')
                 else:
                     print(f'Jhove modules are chosen based on jhove guess since no config file was provided.')
@@ -121,22 +180,48 @@ def setup_config():
         jhove_dir = os.path.join(output_dir, 'jhove_output')
         if not os.path.exists(jhove_dir):
                 os.makedirs(jhove_dir)
-    else:
-        jhoving = False
-        jhove_dir = ""
-        jhove_config = ""
-        jhove_config_exists = False
-
-    mk_copies = False
-    copies_yn = input("Do you want the script to generate copies for files with uncertain or incorrect formats?\n "
-                      "If yes, please type Y.\n"
-                      "Otherwise no copies will be made.")
-    if copies_yn == "Y":
-        mk_copies = True
 
 
-    return (analyze_dir, output_dir, update, decomp, hash_set, jhoving, jhove_dir, jhove_config_exists, jhove_config,
+    return (analyze_dir, output_dir, update, decomp, droid, hash_set, sf, jhoving, jhove_dir, jhove_config_exists, jhove_config,
             mk_copies)
+
+def check_versions(do_droid, do_sf, do_jhove):
+    versions = []
+    if do_droid:
+        try:
+            droid_version = subprocess.check_output([droid_call, '--version'], text = True)
+            droid_version = droid_version[:droid_version.find('\n')]
+            print(f'Droid version is {droid_version}.')
+            versions.append(f'Droid {droid_version}\n')
+        except BaseException:
+            print('The command "droid --version" could not be executed. Is droid installed? Is the path set correctly?')
+            traceback.print_exc()
+            quit()
+    if do_sf:
+        try:
+            sf_version = subprocess.check_output([sf_call, '-version'], text=True)
+            sf_version = sf_version[:sf_version.find('\n')]
+            print(f'Siegfried version is {sf_version}.')
+            versions.append(f'{sf_version}\n')
+        except BaseException:
+            print('The command "sf version" could not be executed. Is siegfried installed? Is the path set correctly?')
+            traceback.print_exc()
+            #quit()
+    if do_jhove:
+        try:
+            jhove_version = subprocess.check_output([jhove_call, '--version'], text=True)
+            jhove_version = jhove_version[:jhove_version.find('\n')]
+            print(f'Jhove version is {jhove_version}.')
+            versions.append(f'{jhove_version}\n')
+            #print(jhove_version)
+        except BaseException:
+            print('The command "jhove --version" could not be executed. Is jhove installed? Is the path set correctly?')
+            traceback.print_exc()
+            quit()
+
+    return versions
+
+
 
 
 def droid_sf_update():
@@ -163,9 +248,11 @@ def droid_shutil(comp_path, fold_path):
     try:
         shutil.unpack_archive(comp_path, fold_path)
         print(f"Successfully unpacked to {fold_path}")
+        return '?', comp_path, "success"
     except BaseException:
         print(f"ERROR: {comp_path} not successfully unpacked.")
         traceback.print_exc()
+        return '?', comp_path, "ERROR"
 
 def droid_untar(tar_path, fold_name):
     print("Untarring " + tar_path)
@@ -185,9 +272,11 @@ def droid_untar(tar_path, fold_name):
                 fold_name = os.path.join(fold_name, f'{last_part}_folderlevel_by_script')
             mytar.extractall(fold_name)
             print(f"Successfully untarred to {fold_name}.")
+            return 'tar', tar_path, "success"
     except BaseException:
         print(f"ERROR: {tar_path} not successfully unpacked.")
         traceback.print_exc()
+        return 'tar', tar_path, "ERROR"
 
 
 def droid_unzip(zip_path, fold_name):
@@ -207,9 +296,11 @@ def droid_unzip(zip_path, fold_name):
 #                print(fold_name)
             myzip.extractall(path=f'{fold_name}')
             print(f"Successfully unzipped to {fold_name}.")
+            return 'zip', zip_path, "success"
     except BaseException:
         print(f"ERROR: {zip_path} not successfully unpacked.")
         traceback.print_exc()
+        return 'zip', zip_path, "ERROR"
 
 def droid_un7zip(sevenzip_path, fold_name):
     print("7unzipping " + sevenzip_path)
@@ -234,13 +325,20 @@ def droid_un7zip(sevenzip_path, fold_name):
             my7z.extractall(path=f'{fold_name}')
             ## TODO: schönerer Output wäre mit Last-part!
             print(f"Successfully un7zipped to {fold_name}.")
+            return '7z', sevenzip_path, "success"
 
     except BaseException:
         print(f"ERROR: {sevenzip_path} not successfully unpacked.")
         traceback.print_exc()
+        return '7z', sevenzip_path, "ERROR"
 
 
-def droid_decomp_routine(droid_input):
+def droid_decomp_routine(droid_input, output_dir):
+    log_dir = setup_dir(output_dir, 'logs')
+    decomp_log = os.path.join(log_dir, 'decomp_log.csv')
+    with open(decomp_log, mode='w') as csvfile:
+        logwriter = csv.writer(csvfile)
+        logwriter.writerow(['Type', 'Status', 'Path'])
     comp_types = {"zip": droid_unzip,
                   "tar": droid_untar,
                   "gz": droid_untar,
@@ -257,9 +355,12 @@ def droid_decomp_routine(droid_input):
         sth_to_unpack = True
     except pd.errors.EmptyDataError:
         print("Keine zip, 7z or gz.xz- Dateien gefunden.")
+        return ["Keine zip, 7z or gz.xz- Dateien gefunden.\n"]
+
     # print(sth_to_unpack)
 
     if sth_to_unpack:
+        print(range(len(decomp_csv)))
         for i in range(len(decomp_csv)):
             ext = decomp_csv.loc[i].EXT
             comp_file_path = decomp_csv.loc[i].FILE_PATH
@@ -283,19 +384,42 @@ def droid_decomp_routine(droid_input):
                         folder_name = folder_name + "_decomp"
                         #print(folder_name)
                     else:
-                       slash_id = folder_name.rfind("/")
-                       folder_name = folder_name[:slash_id + 1]
+                        slash_id = folder_name.rfind("/")
+                        folder_name = folder_name[:slash_id + 1]
                     # folder_name = f'{folder_name}_decomp_by_archive_script'
-                    comp_types[ext](comp_file_path, folder_name)
+                    type, path, status = comp_types[ext](comp_file_path, folder_name)
+                    logarray = [type, status, path]
+                    with open(decomp_log, mode='a') as csvfile:
+                        logwriter = csv.writer(csvfile)
+                        logwriter.writerow(logarray)
                 else:
                     print(f"{ext} is not a compression format that can be automatically unpacked by this script.\n"
                           f"Not unpacked file is {comp_file_path}")
+                    with open(decomp_log, mode='a') as csvfile:
+                        logwriter = csv.writer(csvfile)
+                        logwriter.writerow([ext, 'ERROR - no automatic extraction', comp_file_path])
+
                 # TODO bei gleichnamigem Ordner: vergleichen
             # TODO komprimiertes Paket löschen (?)
             else:
                 if decomp_csv.loc[i].EXTENSION_MISMATCH:
                     print(f"{comp_file_path} has an Extension Mismatch. Needs to be controlled before extraction.")
-
+                    with open(decomp_log, mode='a') as csvfile:
+                        logwriter = csv.writer(csvfile)
+                        logwriter.writerow([ext, 'ERROR - Ext Mismatch', comp_file_path])
+        df_log = pd.read_csv(decomp_log)
+        errors_int = df_log[df_log['Status'] != 'success'].shape[0]
+        success_int = df_log[df_log['Status'] == 'success'].shape[0]
+        success = f'Successfully unpacked: {success_int}.\n'
+        errors = f'Errors while unpacking: {errors_int}.\n\n'
+        types = df_log['Type'].unique()
+        unpacking_report_info = []
+        unpacking_report_info.append(success)
+        unpacking_report_info.append(errors)
+        for t in types:
+            print(f'Compression format {t}: {df_log[df_log['Type'] == t].shape[0]} times\n')
+            unpacking_report_info.append(f'Compression format {t}: {df_log[df_log['Type'] == t].shape[0]} times\n')
+        return unpacking_report_info
 
 def droid_complete(folder_input, droid_output, hash_generation):
     complete_droid = os.path.join(droid_output, "droid_complete.droid")
@@ -312,7 +436,14 @@ def droid_complete(folder_input, droid_output, hash_generation):
     subprocess.run([droid_call,
                     '-p', complete_droid, '-E', complete_droid_csv])
 
-    return complete_droid_csv
+    report_info = []
+    df_droid = pd.read_csv(complete_droid_csv)
+    report_info.append(f'Number of analyzed files: {df_droid[df_droid['TYPE'] != 'Folder'].shape[0]}\n')
+    report_info.append(f'Number of unambiguously identified files: {df_droid[df_droid['FORMAT_COUNT'] == 1].shape[0]}\n')
+    report_info.append(f'Number of ambiguously identified files: {df_droid[df_droid['FORMAT_COUNT'] > 1].shape[0]}\n')
+    report_info.append(f'Number of unidentified files: {df_droid[df_droid['FORMAT_COUNT'] == 0].shape[0]}\n')
+
+    return report_info, complete_droid_csv
 
 
 def sf_analyze(droid_file, output_folder):
@@ -320,6 +451,7 @@ def sf_analyze(droid_file, output_folder):
     droid_complete_csv = pd.read_csv(droid_file)
     droid_complete_csv[['sf_id', 'sf_warning', 'sf_errors']] = None
     droid_sf_csv = os.path.join(output_folder, "droid_sf.csv")
+    print("Siegfried analysis started.")
     for i in range(len(droid_complete_csv)):
         #for i in range(5):
         #print(droid_complete_csv['NAME'].iloc[i])
@@ -342,6 +474,8 @@ def sf_analyze(droid_file, output_folder):
             droid_complete_csv.loc[i, 'sf_warning'] = df_sf_res['warning'].iloc[0]
             droid_complete_csv.loc[i, 'sf_errors'] = df_sf_res['errors'].iloc[0]
 
+
+
     #print(droid_complete_csv['PARENT_ID'].iloc[i])
     droid_complete_csv['PARENT_ID'] = (
         pd.to_numeric(droid_complete_csv['PARENT_ID'], errors='coerce').astype('Int64'))
@@ -349,14 +483,13 @@ def sf_analyze(droid_file, output_folder):
         pd.to_numeric(droid_complete_csv['SIZE'], errors='coerce').astype('Int64'))
     droid_complete_csv['FORMAT_COUNT'] = (
         pd.to_numeric(droid_complete_csv['FORMAT_COUNT'], errors='coerce').astype('Int64'))
-    droid_complete_csv.to_csv(droid_sf_csv)
+    droid_complete_csv.to_csv(droid_sf_csv, index=False)
 
     return droid_complete_csv
 
 
 def jhove_and_copy(droid_sf_analysis, output_folder, dojh, jhove_fl, jh_conf, jh_conf_f, mkcp):
     # TODO: Methoden so auseinanderbauen, dass sf- Tabelle und jhove getrennt
-    # u.a. auch: keine valid/not-well-formed-Ordner, wenn keine jhove...
     if dojh:
         if jh_conf:
             df_jhove_conf = pd.read_csv(jh_conf_f)
@@ -370,7 +503,7 @@ def jhove_and_copy(droid_sf_analysis, output_folder, dojh, jhove_fl, jh_conf, jh
         droid_sf_analysis[['sf_EQ_droid']] = None
         folders = {'mult_dir': 'mult_fmt_id'}
     #jhove_formats = ['fmt']
-    cppath = ''
+    #cppath = ''
     if mkcp:
         for f in folders:
             fold_path = setup_dir(output_folder, folders[f])
@@ -378,6 +511,7 @@ def jhove_and_copy(droid_sf_analysis, output_folder, dojh, jhove_fl, jh_conf, jh
     counter = 0
     for i in range(len(droid_sf_analysis)):
         counter += 1
+        cppath = ''
         # Bedingungen noch verfeinern
         if droid_sf_analysis.loc[i, 'TYPE'] == ('File' or 'Container'):
             file_path = droid_sf_analysis.loc[i, 'FILE_PATH']
@@ -393,8 +527,8 @@ def jhove_and_copy(droid_sf_analysis, output_folder, dojh, jhove_fl, jh_conf, jh
                 # oder Liste von Formaten, um Bytestream-"Prüfung" auszuschließen?
                 if dojh:
                     if droid_sf_analysis.loc[i, 'FORMAT_COUNT'] == 1:
-#                        print(droid_sf_analysis.loc[i, 'PUID'])
-#                        print(df_jhove_conf['PUID'])
+                        #                        print(droid_sf_analysis.loc[i, 'PUID'])
+                        #                        print(df_jhove_conf['PUID'])
                         if jh_conf:
                             if droid_sf_analysis.loc[i, 'PUID'] in df_jhove_conf['PUID'].values:
                                 puid = droid_sf_analysis.loc[i, 'PUID']
@@ -408,7 +542,7 @@ def jhove_and_copy(droid_sf_analysis, output_folder, dojh, jhove_fl, jh_conf, jh
                         else:
                             print('no config')
                             jhove_xml = subprocess.check_output(['jhove', '-h', 'xml', file_path], text=True)
-                        ##TODO: Only save XML file if something is wrong!
+                            ## XML only saved if an error occurs
                         xml_file = os.path.join(jhove_fl, f'xml_{str(counter)}.xml')
                         with open(xml_file, 'w') as jhove_file:
                             jhove_file.write(jhove_xml)
@@ -417,8 +551,8 @@ def jhove_and_copy(droid_sf_analysis, output_folder, dojh, jhove_fl, jh_conf, jh
                         namespaces = {'jhove': 'http://schema.openpreservation.org/ois/xml/ns/jhove'}
                         status = root.xpath("//jhove:jhove/jhove:repInfo/jhove:status", namespaces=namespaces)
                         for s in status:
-                            print(s.text)
-                            if s.text in ['Not well-formed', 'Well-formed, but not valid']:
+                            print(f'status {s.text}')
+                            if s.text in ['Not well-formed', 'Well-Formed, but not valid']:
                                 messages = root.xpath("//jhove:jhove/jhove:repInfo/jhove:messages", namespaces=namespaces)
                                 #print(type(messages))
                                 for m in messages:
@@ -428,6 +562,10 @@ def jhove_and_copy(droid_sf_analysis, output_folder, dojh, jhove_fl, jh_conf, jh
                                             if n.attrib['severity'] == 'error':
                                                 print(f'{n.attrib['id']}')
                                                 print(f'{n.text}')
+                            else:
+                                # TODO eigentlich wünschenswert: XML nur speichern, wenn Problem, aber: aus irgendeinem Grund
+                                # will etree zwar aus dem File laden, aber nicht direkt jhove_xm
+                                os.remove(xml_file)
 
                         # for element in root.iter(tag=etree.Element):
                         #     print(f'{element.tag} {element.text}')
@@ -473,20 +611,76 @@ def jhove_and_copy(droid_sf_analysis, output_folder, dojh, jhove_fl, jh_conf, jh
         dr_sf_jh_csv = os.path.join(output_folder, "droid_sf_jhove.csv")
     else:
         dr_sf_jh_csv = os.path.join(output_folder, "droid_sf_compare.csv")
-    droid_sf_analysis.to_csv(dr_sf_jh_csv)
+    droid_sf_analysis.to_csv(dr_sf_jh_csv, index=False)
+
+    report_info_sf = []
+    report_info_sf.append(f'Number of files with different results for droid and siegfried:'
+                          f' {droid_sf_analysis[droid_sf_analysis['sf_EQ_droid'] == 'False'].shape[0]}\n')
+    report_info_sf.append(f'Number of files with siegfried error: '
+                          f'{droid_sf_analysis[droid_sf_analysis['sf_errors'].notnull()].shape[0]}\n')
+    report_info_sf.append(f'Number of files with siegfried warning: '
+                          f'{droid_sf_analysis[droid_sf_analysis['sf_warning'].notnull()].shape[0]}\n')
+
+    # report for jhove empty if no jhove analysis is done
+    report_info_jh = []
+    if dojh:
+        jhove_status = ['Well-Formed', 'Well-Formed, but not valid', 'Well-Formed and valid',
+                        'Not Well-Formed']
+        bytestream_status = 'BS! Well-Formed and valid'
+        for status in jhove_status:
+            report_info_jh.append(f'Number of files with status {status}: '
+                                  f'{droid_sf_analysis[droid_sf_analysis['jh_status'] == status].shape[0]}\n')
+        report_info_jh.append(f'Number of files that could only validated with BYTESTREAM module: '
+                              f'{droid_sf_analysis[droid_sf_analysis['jh_status'] == bytestream_status].shape[0]}\n')
+
+    return report_info_sf, report_info_jh
     #print(jhove_output[rpm_id:])
     # print(droid_sf_analysis['FILE_PATH'].iloc[i])
 
 
-(analyze, output, dsf_update, decompress, hash_gen, do_jhove, jhove_fol, prop_jhove_config, jhove_config_file, make_copy) = setup_config()
+(analyze, output, dsf_update, decompress, droiding, hash_gen, sf_ing, do_jhove, jhove_fol, prop_jhove_config,
+    jhove_config_file, make_copy) = setup_config()
 # print(analyze)
 # print(output)
+report = ["Results from analysis\n\n"]
+
+if droiding or sf_ing or do_jhove:
+    versions_for_rep = check_versions(droiding, sf_ing, do_jhove)
+    report.append("Used versions of software:\n")
+    for i in versions_for_rep:
+        report.append(i)
+    report.append('\n')
 if dsf_update:
     droid_sf_update()
 if decompress:
+    report.append("Results from unpacking:\n")
     droid_comp = droid_compressed(analyze, output)
-    droid_decomp_routine(droid_comp)
-complete_droidfile = droid_complete(analyze, output, hash_gen)
+    unpack_rep_info = droid_decomp_routine(droid_comp, output)
+    for i in unpack_rep_info:
+        report.append(i)
+    report.append('\n')
+if droiding:
+    report.append("Results from Droid:\n")
+    droid_rep_info, complete_droidfile = droid_complete(analyze, output, hash_gen)
+    for i in droid_rep_info:
+        report.append(i)
+    report.append('\n')
 # print(complete_droidfile)
-droid_sf = sf_analyze(complete_droidfile, output)
-jhove_and_copy(droid_sf, output, do_jhove, jhove_fol, prop_jhove_config, jhove_config_file, make_copy)
+    if sf_ing:
+        report.append("Results from Siegfried:\n")
+        droid_sf = sf_analyze(complete_droidfile, output)
+        sf_rep_info, jh_rep_info = jhove_and_copy(droid_sf, output, do_jhove, jhove_fol, prop_jhove_config, jhove_config_file, make_copy)
+        for i in sf_rep_info:
+            report.append(i)
+        if do_jhove:
+            report.append("\nResults from Jhove:\n")
+            for i in jh_rep_info:
+                report.append(i)
+
+#print(report)
+
+report_path = os.path.join(output, 'report.txt')
+print(report)
+with open(report_path, 'w') as report_txt:
+    for line in report:
+        report_txt.write(line)
