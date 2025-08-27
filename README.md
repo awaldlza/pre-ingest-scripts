@@ -76,7 +76,8 @@ True/False values as to whether Siegfried and Droid reached the same conclusion.
 
 If Jhove validation is added to the process for the files where Droid and Siegfried get the
 same result a jhove validation is executed. The result of this validation, potential errors and their ID are 
-written to the in additional columns of the csv file. The results of the jhove process are also stored as 
+written to the in additional columns of the csv file. If the file is detected as Not Well-Formed or Well-Formed, but not valid,
+the results of the jhove process are also stored as 
 xml files in a separate folder.
 
 ##### copies of problematic files

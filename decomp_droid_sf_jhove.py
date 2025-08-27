@@ -1,3 +1,6 @@
+# based on https://github.com/adsd-digital/pre-ingest-workflow/blob/main/decomp_droid_sf_jhove.py
+# inspired by https://github.com/TIB-Digital-Preservation/sf_DROID_JHOVE
+
 import csv
 import os
 import shutil
@@ -11,9 +14,6 @@ import numpy as np
 import pandas as pd
 import py7zr
 from io import StringIO
-
-
-# TODO set up log
 
 droid_call = 'droid.sh'
 jhove_call = 'jhove'
@@ -33,7 +33,7 @@ def check_config_file_exists(configtype, filepath):
         config_path = filepath
         config_exists = True
         print(f'{config_path} is used as config file for {configtype}.')
-        other_config = input(f'If your want to use another file, please put in filepath here:')
+        other_config = input(f'If you want to use another file, please put in filepath here:')
         other_config.strip(" ").strip('"').strip("'")
         if not other_config == "":
             if os.path.isfile(other_config):
@@ -228,7 +228,6 @@ def droid_sf_update():
     subprocess.run([droid_call, '-d'])
     subprocess.run([sf_call, '-update'])
 
-# TODO: output: nicht entpackte Archive
 def droid_compressed(folderinput, droid_output):
     ## TODO: set list for container files that should be tried to unpack
     droidfile = os.path.join(droid_output, "droid_compressed.csv")
@@ -237,7 +236,7 @@ def droid_compressed(folderinput, droid_output):
                     'type none FOLDER', '-o', droidfile])
     return droidfile
 
-# Aktuell nicht verwendet.
+# Currently not used!
 def droid_shutil(comp_path, fold_path):
     # print(comp_path)
     # print(fold_path)
@@ -285,7 +284,6 @@ def droid_unzip(zip_path, fold_name):
         with ZipFile(zip_path) as myzip:
             zip_name_list = myzip.namelist()
             free_floating_files = False
-            # https://stackoverflow.com/questions/15267661/how-to-check-if-entry-is-file-or-folder-using-pythons-standard-library-zipfile
             for i in zip_name_list:
                 if not '/' in i:
                     free_floating_files = True
@@ -293,7 +291,6 @@ def droid_unzip(zip_path, fold_name):
                 last_part = myzip.filename[myzip.filename.rfind('/')+1:]
                 last_part = last_part.strip('.zip')
                 fold_name = os.path.join(fold_name, f'{last_part}_folderlevel_by_script')
-#                print(fold_name)
             myzip.extractall(path=f'{fold_name}')
             print(f"Successfully unzipped to {fold_name}.")
             return 'zip', zip_path, "success"
@@ -306,10 +303,8 @@ def droid_un7zip(sevenzip_path, fold_name):
     print("7unzipping " + sevenzip_path)
     try:
         with py7zr.SevenZipFile(sevenzip_path) as my7z:
-            #sevenzip_name_list = my7z.namelist()
             sevenzip_list = my7z.list()
             free_floating_files = False
-            # https://stackoverflow.com/questions/15267661/how-to-check-if-entry-is-file-or-folder-using-pythons-standard-library-zipfile
             for i in sevenzip_list:
                 # print(i.filename)
                 if not '/' in i.filename and not i.is_directory:
@@ -323,7 +318,7 @@ def droid_un7zip(sevenzip_path, fold_name):
                 fold_name = os.path.join(fold_name, f'{last_part}_folderlevel_by_script')
                 # print(fold_name)
             my7z.extractall(path=f'{fold_name}')
-            ## TODO: schönerer Output wäre mit Last-part!
+            ## TODO: prettier output would be to add unpacking folder name!
             print(f"Successfully un7zipped to {fold_name}.")
             return '7z', sevenzip_path, "success"
 
@@ -334,7 +329,6 @@ def droid_un7zip(sevenzip_path, fold_name):
 
 
 def droid_decomp_routine(droid_input, output_dir):
-    #log_dir = setup_dir(output_dir, 'logs')
     decomp_log = os.path.join(output_dir, 'decomp_log.csv')
     with open(decomp_log, mode='w') as csvfile:
         logwriter = csv.writer(csvfile)
@@ -368,25 +362,19 @@ def droid_decomp_routine(droid_input, output_dir):
                 # print(ext)
                 # print(comp_types[ext])
                 folder_name = comp_file_path.rstrip("." + ext)
-                # Problem: tar.xz -> wenn xz weggenommen wird, immer noch tar, dadurch:
-                # schon vorhandener gleichnamiger Ordner nicht erkannt
+                # specific condition added: due to double extension (.tar.gz, .tar.xz) after removing the first extension
+                # the folder of the same name does not get recognized
                 if folder_name[-4:] == ".tar":
                     folder_name = folder_name[:-4]
                     ext = 'tar'
                 if ext in comp_types:
-                    #print(f'folder ist {folder_name}')
-                    #folder_name = os.
-                    #comp_file_path = f'"{comp_file_path}"'
-                    #print(folder_name)
                     folder_exists = False
                     if os.path.exists(folder_name):
                         folder_exists = True
                         folder_name = folder_name + "_decomp"
-                        #print(folder_name)
                     else:
                         slash_id = folder_name.rfind("/")
                         folder_name = folder_name[:slash_id + 1]
-                    # folder_name = f'{folder_name}_decomp_by_archive_script'
                     type, path, status = comp_types[ext](comp_file_path, folder_name)
                     logarray = [type, status, path]
                     with open(decomp_log, mode='a') as csvfile:
@@ -399,8 +387,8 @@ def droid_decomp_routine(droid_input, output_dir):
                         logwriter = csv.writer(csvfile)
                         logwriter.writerow([ext, 'ERROR - no automatic extraction', comp_file_path])
 
-                # TODO bei gleichnamigem Ordner: vergleichen
-            # TODO komprimiertes Paket löschen (?)
+            # TODO compare folders with same name with hash sums - if the same: automatic deletion?
+            # TODO delete compressed package automatically after succesful decompression?
             else:
                 if decomp_csv.loc[i].EXTENSION_MISMATCH:
                     print(f"{comp_file_path} has an Extension Mismatch. Needs to be controlled before extraction.")
@@ -417,7 +405,7 @@ def droid_decomp_routine(droid_input, output_dir):
         unpacking_report_info.append(success)
         unpacking_report_info.append(errors)
         for t in types:
-            print(f'Compression format {t}: {df_log[df_log['Type'] == t].shape[0]} times\n')
+            # print(f'Compression format {t}: {df_log[df_log['Type'] == t].shape[0]} times\n')
             unpacking_report_info.append(f'Compression format {t}: {df_log[df_log['Type'] == t].shape[0]} times\n')
         return unpacking_report_info
 
@@ -430,7 +418,6 @@ def droid_complete(folder_input, droid_output, hash_generation):
         genHash = 'generateHash=true'
     # Warning: Running droid creates a derby.log file in the CWD.
 
-##    auskommentiert, damit droid nicht läuft
     subprocess.run([droid_call,
                     '-R', '-a', folder_input, '-At', '-Wt', '-Pr', genHash, '-p', complete_droid])
     subprocess.run([droid_call,
@@ -447,36 +434,27 @@ def droid_complete(folder_input, droid_output, hash_generation):
 
 
 def sf_analyze(droid_file, output_folder):
-    # Achtung: beim Einlesen werde manche Dateitypen geändert, z.B. Int zu Float(?)
     droid_complete_csv = pd.read_csv(droid_file)
     droid_complete_csv[['sf_id', 'sf_warning', 'sf_errors']] = None
     droid_sf_csv = os.path.join(output_folder, "droid_sf.csv")
     print("Siegfried analysis started.")
-    for i in range(len(droid_complete_csv)):
-        #for i in range(5):
-        #print(droid_complete_csv['NAME'].iloc[i])
-        if droid_complete_csv['TYPE'].iloc[i] == ('File' or 'Container'):
-            sf_an_path = droid_complete_csv['FILE_PATH'].iloc[i]
+    for j in range(len(droid_complete_csv)):
+        if droid_complete_csv['TYPE'].iloc[j] == ('File' or 'Container'):
+            sf_an_path = droid_complete_csv['FILE_PATH'].iloc[j]
             # print(sf_an_path)
-            droid_fmt = droid_complete_csv['PUID'].iloc[i]
-            droid_fmt_count = droid_complete_csv['FORMAT_COUNT'].iloc[i]
-            # print(type(sf_an_path))
-            # print(droid_fmt)
-            # print(droid_fmt_count)
-            # sf_res = subprocess.run([sf_call, '-csv', sf_an_path])
+            droid_fmt = droid_complete_csv['PUID'].iloc[j]
+            droid_fmt_count = droid_complete_csv['FORMAT_COUNT'].iloc[j]
 
-            ## auskommentiert, damit sf nicht läuft
             sf_res = subprocess.check_output([sf_call, '-csv', sf_an_path], text=True)
             csv_io = StringIO(sf_res)
             df_sf_res = pd.read_csv(csv_io)
 
-            droid_complete_csv.loc[i, 'sf_id'] = df_sf_res['id'].iloc[0]
-            droid_complete_csv.loc[i, 'sf_warning'] = df_sf_res['warning'].iloc[0]
-            droid_complete_csv.loc[i, 'sf_errors'] = df_sf_res['errors'].iloc[0]
+            droid_complete_csv.loc[j, 'sf_id'] = df_sf_res['id'].iloc[0]
+            droid_complete_csv.loc[j, 'sf_warning'] = df_sf_res['warning'].iloc[0]
+            droid_complete_csv.loc[j, 'sf_errors'] = df_sf_res['errors'].iloc[0]
 
-
-
-    #print(droid_complete_csv['PARENT_ID'].iloc[i])
+    # Changing back certain columns back to their original integer value after pandas changed
+    # types of some columns when loading the data.
     droid_complete_csv['PARENT_ID'] = (
         pd.to_numeric(droid_complete_csv['PARENT_ID'], errors='coerce').astype('Int64'))
     droid_complete_csv['SIZE'] = (
@@ -502,8 +480,6 @@ def jhove_and_copy(droid_sf_analysis, output_folder, dojh, jhove_fl, jh_conf, jh
     else:
         droid_sf_analysis[['sf_EQ_droid']] = None
         folders = {'mult_dir': 'mult_fmt_id'}
-    #jhove_formats = ['fmt']
-    #cppath = ''
     if mkcp:
         for f in folders:
             fold_path = setup_dir(output_folder, folders[f])
@@ -512,23 +488,16 @@ def jhove_and_copy(droid_sf_analysis, output_folder, dojh, jhove_fl, jh_conf, jh
     for i in range(len(droid_sf_analysis)):
         counter += 1
         cppath = ''
-        # Bedingungen noch verfeinern
         if droid_sf_analysis.loc[i, 'TYPE'] == ('File' or 'Container'):
             file_path = droid_sf_analysis.loc[i, 'FILE_PATH']
             if droid_sf_analysis['FORMAT_COUNT'].iloc[i] !=1  or droid_sf_analysis['sf_id'].iloc[i] != droid_sf_analysis['PUID'].iloc[i]:
                 droid_sf_analysis.loc[i, 'sf_EQ_droid'] = False
-                #dest_file = os.path.join(folders['mult_dir'], os.path.basename(file_path))
                 if mkcp:
                     cppath = folders['mult_dir']
             else:
                 droid_sf_analysis.loc[i, 'sf_EQ_droid'] = True
-                # Prüfen: gibt es Fälle, wenn !=1 und trotzdem korrekt erkannt?
-                # Sinnvoller: jhove auswählen lassen oder HUL festlegen?
-                # oder Liste von Formaten, um Bytestream-"Prüfung" auszuschließen?
                 if dojh:
                     if droid_sf_analysis.loc[i, 'FORMAT_COUNT'] == 1:
-                        #                        print(droid_sf_analysis.loc[i, 'PUID'])
-                        #                        print(df_jhove_conf['PUID'])
                         if jh_conf:
                             if droid_sf_analysis.loc[i, 'PUID'] in df_jhove_conf['PUID'].values:
                                 puid = droid_sf_analysis.loc[i, 'PUID']
@@ -563,19 +532,18 @@ def jhove_and_copy(droid_sf_analysis, output_folder, dojh, jhove_fl, jh_conf, jh
                                                 print(f'{n.attrib['id']}')
                                                 print(f'{n.text}')
                             else:
-                                # TODO eigentlich wünschenswert: XML nur speichern, wenn Problem, aber: aus irgendeinem Grund
-                                # will etree zwar aus dem File laden, aber nicht direkt jhove_xm
+                                # TODO potentially: only store XML j
+                                #  in the first place if problem is detected?
                                 os.remove(xml_file)
 
                         # for element in root.iter(tag=etree.Element):
                         #     print(f'{element.tag} {element.text}')
-                        # TODO: Auch über XML-Output regeln?
+                        # TODO: also get info from etree?
                         jhove_output = subprocess.check_output(['jhove', file_path], text=True)
                         jhove_output_array = jhove_output.split('\n')
                         bytestream = False
                         error_fd = False
                         for item in jhove_output_array:
-                            #print(item)
                             if "ReportingModule: " in item:
                                 mod = item.split(': ')[1].split(',')[0]
                                 droid_sf_analysis.loc[i, 'jh_RepMod'] = mod
@@ -599,29 +567,24 @@ def jhove_and_copy(droid_sf_analysis, output_folder, dojh, jhove_fl, jh_conf, jh
                                 if error_fd:
                                     error_id = item.split(': ')[1]
                                     droid_sf_analysis.loc[i, 'jh_error_id'] = error_id
-                        #print(cppath)
             if mkcp and cppath != '':
-                # print('kopieren!')
                 # print(file_path)
                 # print(cppath)
                 if os.path.exists(cppath):
                     shutil.copy(file_path, cppath)
-
     if dojh:
         dr_sf_jh_csv = os.path.join(output_folder, "droid_sf_jhove.csv")
     else:
         dr_sf_jh_csv = os.path.join(output_folder, "droid_sf_compare.csv")
     droid_sf_analysis.to_csv(dr_sf_jh_csv, index=False)
 
-    report_info_sf = []
-    report_info_sf.append(f'Number of files with different results for droid and siegfried:'
-                          f' {droid_sf_analysis[droid_sf_analysis['sf_EQ_droid'] == 'False'].shape[0]}\n')
-    report_info_sf.append(f'Number of files with siegfried error: '
-                          f'{droid_sf_analysis[droid_sf_analysis['sf_errors'].notnull()].shape[0]}\n')
-    report_info_sf.append(f'Number of files with siegfried warning: '
-                          f'{droid_sf_analysis[droid_sf_analysis['sf_warning'].notnull()].shape[0]}\n')
+    report_info_sf = [f'Number of files with different results for droid and siegfried:'
+                      f' {droid_sf_analysis[droid_sf_analysis['sf_EQ_droid'] == 'False'].shape[0]}\n',
+                      f'Number of files with siegfried error: '
+                      f'{droid_sf_analysis[droid_sf_analysis['sf_errors'].notnull()].shape[0]}\n',
+                      f'Number of files with siegfried warning: '
+                      f'{droid_sf_analysis[droid_sf_analysis['sf_warning'].notnull()].shape[0]}\n']
 
-    # report for jhove empty if no jhove analysis is done
     report_info_jh = []
     if dojh:
         jhove_status = ['Well-Formed', 'Well-Formed, but not valid', 'Well-Formed and valid',
@@ -634,14 +597,11 @@ def jhove_and_copy(droid_sf_analysis, output_folder, dojh, jhove_fl, jh_conf, jh
                               f'{droid_sf_analysis[droid_sf_analysis['jh_status'] == bytestream_status].shape[0]}\n')
 
     return report_info_sf, report_info_jh
-    #print(jhove_output[rpm_id:])
-    # print(droid_sf_analysis['FILE_PATH'].iloc[i])
+
 
 
 (analyze, output, dsf_update, decompress, droiding, hash_gen, sf_ing, do_jhove, jhove_fol, prop_jhove_config,
     jhove_config_file, make_copy) = setup_config()
-# print(analyze)
-# print(output)
 report = ["Results from analysis\n\n"]
 
 if droiding or sf_ing or do_jhove:
@@ -665,7 +625,6 @@ if droiding:
     for i in droid_rep_info:
         report.append(i)
     report.append('\n')
-# print(complete_droidfile)
     if sf_ing:
         report.append("Results from Siegfried:\n")
         droid_sf = sf_analyze(complete_droidfile, output)
@@ -677,10 +636,8 @@ if droiding:
             for i in jh_rep_info:
                 report.append(i)
 
-#print(report)
-
 report_path = os.path.join(output, 'report.txt')
-print(report)
+# print(report)
 with open(report_path, 'w') as report_txt:
     for line in report:
         report_txt.write(line)
