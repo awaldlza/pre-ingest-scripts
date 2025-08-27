@@ -5,7 +5,7 @@ only tested on Ubuntu 24.04
 ### decomp_droid_sf_jhove.py
 
 This script executes a series of actions on an input folder that can be helpful in a pre-ingest process for digital preservation:
-- decompression of compressed files (at the moment zip, 7z and tar (in compression ...) are supported.)
+- decompression of compressed files (at the moment zip, 7z and tar (gzip, bz2 and lzma) are supported.)
 - file identification with droid
 - file identification with siegfried
 - file validation with jhove
