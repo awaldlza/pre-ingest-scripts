@@ -1,49 +1,46 @@
 # Script to Analyse DROID reports
 # parts of the code are taken from and/or inspired by Freud (https://github.com/digital-preservation/freud 
 # (Copyright (c) 2019, The National Archives)
-# Inputs for this script are 
-# (a) a droid report in csv (file path given when starting the program
-# (b) a file format list (format-list.csv) that is located in the folder that the script is run from
-# The format list needs the following columns:
-# unchanged, automatic migration, manual migration, cannot be opened, delete, password protected, compressed, research started,
-# not categorized yet,appraisal hint.
-
-# This script will analyse the DROID report and categorizes the formats according to
-# - needs for preparation before ingest
-# - deletable formats
-# - hint for appraisal
-# This will then create in the directory which the program is running from
-# (a) an excel spreadsheet with added columns for
-#     Category, Deletion and Appraisal,
-# (b) a csv-file with the file paths for all the files that are marked for deletion
-# (c) a file with the file paths in a tag format that can afterwards be added to the json file that archifiltre 
-#     (https://github.com/SocialGouv/archifiltre-docs) creates. If you want to use these tags you need to tell the
-#     script how to shorten the file paths so archifiltre will be able to interpret them: 
-#     The file paths in the archifiltre json start with the folder that is has been handed over for analysis to archifiltre.
-#     In DROID the file paths are absolute. So for the file paths to work in archifiltre the folders leading 
-#     up to the analyed folders have to be removed.
-#     e.g. Let's say, in archifiltre the folder "archifolder" has been analysed, in DROID and in archifiltre.
-#     "archifolder" is placed at /path/to/archifolder.
-#     Then you need to give the script as input for prefix for archifiltre: "/path/to"
-      
+# The original version of this script is: https://github.com/adsd-digital/pre-ingest-workflow/blob/main/format-categorization.py
 
 import pandas as pd
 import numpy as np
 import os
 import json
-import xlsxwriter
 
 # below loads the csv file into pandas and takes required columns, additional columns for multiple identification are not taken yet as this breaks the csv read. 
 # It also asks for the archifiltre prefix and loads a copy of the format-list.csv
 output_dir = input("Enter path to output folder of sf_droid_jhove.py:")
 output_dir = output_dir.strip(' ').strip('"').strip("'")
-csvraw = os.path.join(output_dir, "droid_sf_jhove.csv")
+csvraw = ""
+file_list = os.listdir(output_dir)
+#print(file_list)
+found_droid_output = False
+n = 0
+possible_droid_files = ['droid_sf_jhove.csv', 'droid_sf_compare.csv', 'droid_sf.csv', 'droid_complete.csv']
+
+while not found_droid_output and n < 3:
+    if not possible_droid_files[n] in file_list:
+        #print('x')
+        n += 1
+    else:
+         found_droid_output = True
+         csvraw = possible_droid_files[n]
+if not found_droid_output:
+    "Could not find output file of decomp_droid_sf_jhove.py-script. Will now check for any csv file with 'droid' in its name."
+    for name in file_list:
+        print(name)
+        print(name.find("droid"))
+        print(name.endswith('.csv'))
+        if (name.find("droid") > -1) and name.endswith('.csv'):
+            csvraw = name
+
+csvraw = os.path.join(output_dir, csvraw)
 if not os.path.isfile(csvraw):
-    csvraw = input("The script expects there to be a file named droid_sf_jhove.csv in the output folder. \n"
-          "Please input the correct directory or stop the script. \n"
-          "If not the script will exit.")
-    if not os.path.isfile(csvraw):
-        quit()
+    print("The script expects there to be a csv file with droid output that has 'droid' in its name in the folder.")
+    quit()
+
+print(f"The script will use {csvraw} as its input file.")
 
 # columns_needed = ['ID','PARENT_ID','URI','FILE_PATH','NAME','METHOD','STATUS','SIZE','TYPE','EXT','LAST_MODIFIED',
 #                   'EXTENSION_MISMATCH','FORMAT_COUNT','PUID','MIME_TYPE','FORMAT_NAME','FORMAT_VERSION',
@@ -53,7 +50,7 @@ droidname = os.path.basename(csvraw)
 droidname = droidname.rstrip('.csv')
 
 archifiltre_prefix = input("Enter the prefix that has to be removed for the archifiltre json (If no archifiltre tags are"
-                           " needed, you can leave this empty. Further info in the comment in the script.):")
+                           " needed, you can leave this empty. Further info in the README.):")
 
 # delimiter for this csv file is currently semicolon - if the csv is with commas (as the DROID output is) the delimiter parameter can be dropped)
 formatlist = pd.read_csv('format-list.csv')

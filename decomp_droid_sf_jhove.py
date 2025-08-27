@@ -334,8 +334,8 @@ def droid_un7zip(sevenzip_path, fold_name):
 
 
 def droid_decomp_routine(droid_input, output_dir):
-    log_dir = setup_dir(output_dir, 'logs')
-    decomp_log = os.path.join(log_dir, 'decomp_log.csv')
+    #log_dir = setup_dir(output_dir, 'logs')
+    decomp_log = os.path.join(output_dir, 'decomp_log.csv')
     with open(decomp_log, mode='w') as csvfile:
         logwriter = csv.writer(csvfile)
         logwriter.writerow(['Type', 'Status', 'Path'])
@@ -515,7 +515,7 @@ def jhove_and_copy(droid_sf_analysis, output_folder, dojh, jhove_fl, jh_conf, jh
         # Bedingungen noch verfeinern
         if droid_sf_analysis.loc[i, 'TYPE'] == ('File' or 'Container'):
             file_path = droid_sf_analysis.loc[i, 'FILE_PATH']
-            if droid_sf_analysis['sf_id'].iloc[i] != droid_sf_analysis['PUID'].iloc[i]:
+            if droid_sf_analysis['FORMAT_COUNT'].iloc[i] !=1  or droid_sf_analysis['sf_id'].iloc[i] != droid_sf_analysis['PUID'].iloc[i]:
                 droid_sf_analysis.loc[i, 'sf_EQ_droid'] = False
                 #dest_file = os.path.join(folders['mult_dir'], os.path.basename(file_path))
                 if mkcp:
