@@ -6,17 +6,20 @@ only tested on Ubuntu 24.04
 
 This script executes a series of actions on an input folder that can be helpful in a pre-ingest process for digital preservation:
 - decompression of compressed files (at the moment zip, 7z and tar (gzip, bz2 and lzma) are supported.)
-- file identification with droid
-- file identification with siegfried
-- file validation with jhove
+- file identification with [DROID](https://www.nationalarchives.gov.uk/information-management/manage-information/preserving-digital-records/droid)
+- file identification with [siegfried](https://github.com/richardlehane/siegfried)
+- file validation with [jhove](https://jhove.openpreservation.org/getting-started/)
 
 ### format-categorization.py
-Based on PUIDs this script assigns needed actions (e.g. manual migration, deletion) or appraisal hints as they are configured in a csv file to a list of files. The script can also deliver tags that can later be inserted into the output of an archifiltre json. That way e.g. appraisal hints can be viewed in a visualistion of the directory in archifiltre.
+Based on PUIDs this script assigns needed actions (e.g. manual migration, deletion) or appraisal hints as they are 
+configured in a csv file to a list of files. The script can also deliver tags that are inserted into the 
+output of an [archifiltre](https://github.com/SocialGouv/archifiltre-docs) json. That way the appraisal hints can be 
+viewed in a visualistion of the directory in archifiltre.
 The output folder of decomp_droid_sf_jhove.py can serve as input for format-categorization.py
 
 ## Prerequisites
 
-For running decomp_droid_sf_jhove.py [droid]([url](https://www.nationalarchives.gov.uk/information-management/manage-information/preserving-digital-records/droid/)), [siegfried]([url](https://github.com/richardlehane/siegfried)) and [jhove]([url](https://jhove.openpreservation.org/getting-started/)) need to be installed.
+For running decomp_droid_sf_jhove.py DROID, JHOVE and siegfried need to be installed.
 This script assumes that these programmes are called by "droid", "sf" or "jhove". If these programmes are called by their filepath or another name, these paths/names have to be set in the script decomp_sf_jhove_droid.py in lines 17-19
 
 Both scripts (decomp_droid_sf_jhove.py and format-categorization.py) use a few modules that often don't come preinstalled, among them :
@@ -107,9 +110,12 @@ not categorized yet,appraisal hint.
 
 ##### prefix for archifiltre
 
-The script generates tags that can be inserted in an archifiltre output. If you want to use these tags 
-you need to tell the
-script how to shorten the file paths so archifiltre will be able to interpret them: 
+The script also checks if there is a json file in the directory. It assumes that an existing json file is the output
+of a file visualisation with archifiltre. If it finds a json, the script will generate tags for all files that are 
+assigned an "appraisal hint". It then inserts these tags into the archifiltre output.
+
+If you want to use these tags you need to tell the script how to shorten the file paths so archifiltre will 
+be able to interpret them: 
     
 The file paths in the archifiltre json start with the folder that it received as input.
 In DROID the file paths are absolute. So for the file paths to work in archifiltre the folders leading 
@@ -130,9 +136,9 @@ As output the script creates in the directory which the program is running from
 1.  A csv file with added columns for
     Category, Deletion and Appraisal,
 2.  A csv file with the file paths for all the files that are marked for deletion
-3.  A file with the file paths in a tag format that can afterwards be added to the json file that archifiltre 
-    (https://github.com/SocialGouv/archifiltre-docs) creates. 
+3.  A json file (filename as the archifiltre.json, with added "_tags") 
 
-The tags generated as third output can then be manually copied to the json element tags{} in the archifiltre output. 
-If you then load this output into archifiltre again the tagged elements should be visible in the visualized folder structure.
+
+The json file  can be loaded into archifiltre again. The elements with an appraisal hint should now be 
+recognizable by their tags.
 

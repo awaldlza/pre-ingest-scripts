@@ -42,15 +42,33 @@ if not os.path.isfile(csvraw):
 
 print(f"The script will use {csvraw} as its input file.")
 
+
+do_archifiltre = False
+
+archifiltre_json = ''
+for filename in file_list:
+    if filename.endswith('.json'):
+        archifiltre_json = os.path.join(output_dir, filename)
+
+if archifiltre_json != '':
+    print(f"The script will use {archifiltre_json} as archifiltre json.")
+    do_archifiltre = True
+else:
+    print(f'No archifiltre.json found.')
+
+if do_archifiltre:
+    archifiltre_prefix = input("Enter the prefix that has to be removed for the archifiltre json.")
+else:
+    archifiltre_prefix = ""
+
+
+
 # columns_needed = ['ID','PARENT_ID','URI','FILE_PATH','NAME','METHOD','STATUS','SIZE','TYPE','EXT','LAST_MODIFIED',
 #                   'EXTENSION_MISMATCH','FORMAT_COUNT','PUID','MIME_TYPE','FORMAT_NAME','FORMAT_VERSION',
 #                   'sf_id', 'sf_warning','sf_errors', 'sf_EQ_droid', 'jh_RepMod', 'jh_status', 'jh_error', 'jh_error_id']
 csv = pd.read_csv(csvraw, low_memory=False)
 droidname = os.path.basename(csvraw)
 droidname = droidname.rstrip('.csv')
-
-archifiltre_prefix = input("Enter the prefix that has to be removed for the archifiltre json (If no archifiltre tags are"
-                           " needed, you can leave this empty. Further info in the README.):")
 
 # delimiter for this csv file is currently semicolon - if the csv is with commas (as the DROID output is) the delimiter parameter can be dropped)
 formatlist = pd.read_csv('format-list.csv')
@@ -144,24 +162,35 @@ def format_categorization():
     format_cat_csv = os.path.join(output_dir, 'format_cat.csv')
     all.to_csv(format_cat_csv, index=False)
 
-
+    if do_archifiltre:
     # generation of tags for archifiltre  
-    appraisaltag = {"4e158817-f884-450f-aa89-9e2ef90ea172": { "ffIds": appraisalArchifiltreList,
-                                                        'id': "4e158817-f884-450f-aa89-9e2ef90ea172",
-                                                        "name": "Bewertungshinweise"
+        appraisaltag = {"4e158817-f884-450f-aa89-9e2ef90ea172": { "ffIds": appraisalArchifiltreList,
+                                                            'id': "4e158817-f884-450f-aa89-9e2ef90ea172",
+                                                            "name": "Bewertungshinweise"
 
-                                                        }
-              }
+                                                            }
+                  }
 
 
-    appraisaltag = json.dumps(appraisaltag, ensure_ascii=False)
-    appraisaltag = appraisaltag.strip("{")
-    appraisaltag = appraisaltag.strip("}")
+        appraisaltag = json.dumps(appraisaltag, ensure_ascii=False)
 
-    archifiltre_txt = os.path.join(output_dir, 'archifiltre-tags.txt')
-    with open(archifiltre_txt, "w", encoding='utf-8') as f:
-        f.write(appraisaltag + '}')
-          
+        archifiltre_name = os.path.basename(archifiltre_json)
+        archifiltre_name = archifiltre_name[:archifiltre_name.find('.json')]
+        archifiltre_json_mod = os.path.join(output_dir, f'{archifiltre_name}_with_tags.json')
+
+        # tagfile = open(appraisaltag)
+        tagdata = json.loads(appraisaltag)
+
+        archifiltre_file = open(archifiltre_json)
+        archi_data = json.load(archifiltre_file)
+        print(type(archi_data))
+        print(archi_data['tags'])
+        archi_data['tags'] = tagdata
+        print(archi_data['tags'])
+
+        with open(archifiltre_json_mod, "w") as mod_file:
+            json.dump(archi_data, mod_file)
+
     # generation of file with list of files that are to be deleted
     delete_csv = os.path.join(output_dir, f'delete.csv')
     with open(delete_csv, "w", encoding='utf-8') as g:
