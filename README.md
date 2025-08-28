@@ -55,6 +55,8 @@ If you do not want to rely on jhove choosing the right module for the submitted 
 This jhove config file needs to be a csv file with two columns, the first one called "PUID", the second one "jhove_module". In the first column puids can be listed for which jhove should choose a specific module.
 For files with puids that are not listed in the csv the script will use the module that jhove autodetects.
 
+The provided jhove_config.csv is only an example for the needed structure! The selection of PUIDs has no deeper meaning.
+
 #### output
 
 The script will always create a report.txt in the output folder with an overview of the executed actions.
@@ -107,6 +109,8 @@ The script also expects there to be a format list.
 The format list needs the following columns:
 unchanged, automatic migration, manual migration, cannot be opened, delete, password protected, compressed, research started,
 not categorized yet,appraisal hint.
+
+The provided format-list.csv is just an example for the needed structure! The assignment of PUIDs bears no deeper meaning.
 
 ##### prefix for archifiltre
 

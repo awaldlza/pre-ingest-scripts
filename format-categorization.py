@@ -183,10 +183,7 @@ def format_categorization():
 
         archifiltre_file = open(archifiltre_json)
         archi_data = json.load(archifiltre_file)
-        print(type(archi_data))
-        print(archi_data['tags'])
         archi_data['tags'] = tagdata
-        print(archi_data['tags'])
 
         with open(archifiltre_json_mod, "w") as mod_file:
             json.dump(archi_data, mod_file)
